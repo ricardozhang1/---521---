@@ -7,7 +7,7 @@ import logging
 
 
 
-url = "http://www.hefei.gov.cn/public/column/1741?catId=7018049&nav=3&action=list&type=4&pageIndex=1"
+url = "http://www.hefei.gov.cn/content/column/6794811?pageIndex=1"
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36",
     "Accept": "*/*",
@@ -21,7 +21,9 @@ headers = {
 def get_hash_script():
     # 521页面
     resp = requests.get(url, headers=headers)
-    # # 获取cookie值
+    if resp.status_code == 200:
+        return resp, "", True
+    # 获取cookie值
     j_c = resp.headers.get('Set-Cookie').replace('; HttpOnly', '')
     c1 = {item.split('=')[0].strip(): item.split('=')[1].strip() for item in j_c.split(';')}
     cookie = {'__jsluid_h': c1.get('__jsluid_h')}
@@ -33,7 +35,9 @@ def get_hash_script():
     coo = cookie
     coo.update(cc1)
     resp = requests.get(url, headers=headers, cookies=coo)
-    return resp.text, coo
+    if resp.status_code == 200:
+        return resp, "", True
+    return resp, coo, False
 
 
 def handle_script(javascript_code):
@@ -62,26 +66,23 @@ def exec_js(js_text, data):
 
 
 def get_page_cookie():
-    try:
-        resp, cookie = get_hash_script()
-    except Exception as e:
-        resp = None
-        cookie = None
+    resp, cookie, is_get = get_hash_script()
 
-    if resp:
-        script_text, go_data = handle_script(resp)
+    if not is_get:
+        script_text, go_data = handle_script(resp.text)
         ret = exec_js(script_text, eval(go_data))
         coo = {item.split('=')[0].strip(): item.split('=')[1].strip() for item in ret.split(';')}
         cookie.update(coo)
         return cookie
     else:
-        logging.fatal("failed to get cookies, please try again!")
-        return ''
+        return dict(resp.cookies.items())
 
 
 if __name__ == '__main__':
     cookie = get_page_cookie()
     print(cookie)
-
+    response = requests.get(url=url, headers=headers, cookies=cookie)
+    print(response.status_code)
+    print(response.text)
 
 
